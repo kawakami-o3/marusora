@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 rand = "0.8.3"
+tui = "0.14"
+termion = "1.5"
