@@ -20,4 +20,3 @@ cargo run examples/nba.txt
 * 一対多の関係管理
 * 逆方向の設問生成
 
-

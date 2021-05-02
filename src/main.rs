@@ -6,9 +6,8 @@ use tui::{
     backend::TermionBackend,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    widgets::canvas::Canvas,
-    widgets::{Block, Borders, Widget},
+    style::Style,
+    widgets::Widget,
     Terminal,
 };
 
@@ -17,7 +16,7 @@ struct App {
     words: Vec<(String, String)>,
 
     deck: Vec<usize>,
-    target_idx: usize,
+    target_idx: i32,
 }
 
 impl App {
@@ -25,7 +24,7 @@ impl App {
         App {
             words: Vec::new(),
             deck: Vec::new(),
-            target_idx: 0,
+            target_idx: -1,
         }
     }
 
@@ -53,52 +52,72 @@ impl App {
     }
     */
 
-    fn update_target(&mut self) {
-        //if self.deck.is_empty() {
-        //    self.target_idx = 0;
-        //} else {
-        //    let mut rng = thread_rng();
-        //    self.target_idx = rng.gen_range(0..self.deck.len());
-        //}
-        let mut rng = thread_rng();
-        self.target_idx = rng.gen_range(0..self.deck.len());
-        self.deck.remove(self.target_idx);
+    fn update_target(&mut self) -> Option<i32> {
+        if self.target_idx >= 0 {
+            self.deck.remove(self.target_idx as usize);
+        }
 
-        /*
-        let word = self.words[self.deck[i]].clone();
-        self.deck.remove(i);
-        Some((word.0.clone(), word.1.clone()))
-        */
+        if self.deck.is_empty() {
+            return None;
+        }
+
+        let mut rng = thread_rng();
+        self.target_idx = rng.gen_range(0..self.deck.len()) as i32;
+
+        Some(self.target_idx)
+    }
+
+    fn get_question_no(&self) -> usize {
+        self.words.len() - self.deck.len() + 1
     }
 
     fn get_question(&self) -> &String {
-        &self.words[self.deck[self.target_idx]].0
+        &self.words[self.deck[self.target_idx as usize]].0
     }
 
     fn get_answer(&self) -> &String {
-        &self.words[self.deck[self.target_idx]].1
+        &self.words[self.deck[self.target_idx as usize]].1
     }
 }
 
 struct Label<'a> {
     text: &'a str,
+    x: u16,
+    y: u16,
 }
 
 impl<'a> Default for Label<'a> {
     fn default() -> Label<'a> {
-        Label { text: "" }
+        Label {
+            text: "",
+            x: 6,
+            y: 3,
+        }
     }
 }
 
 impl<'a> Widget for Label<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let x = 6;
-        let y = 3;
-        buf.set_string(area.left() + x, area.top() + y, self.text, Style::default());
+        //let x = 6;
+        //let y = 3;
+        buf.set_string(
+            area.left() + self.x,
+            area.top() + self.y,
+            self.text,
+            Style::default(),
+        );
     }
 }
 
 impl<'a> Label<'a> {
+    //fn new() -> Label<'a> {
+    //    Label {
+    //        text: "",
+    //        x: 0,
+    //        y: 0,
+    //    }
+    //}
+
     fn text(mut self, text: &'a str) -> Label<'a> {
         self.text = text;
         self
@@ -133,9 +152,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-    //let mut view = View::new();
-    //view.clear().unwrap();
-
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -148,22 +164,15 @@ fn main() -> io::Result<()> {
     app.prepare();
 
     let mut mode = Mode::Question;
-    //let mut word = Some((String::new(), String::new()));
+
     loop {
         if mode == Mode::Question {
-            app.update_target();
-            //word = app.next();
-            //if word == None {
-            //    break;
-            //}
+            let result = app.update_target();
+
+            if result == None {
+                break;
+            }
         }
-
-        //let w = word.clone().unwrap();
-        //let w = word.unwrap();
-
-        //view.draw(&word).unwrap();
-        //view.draw(&w).unwrap();
-        //let b = bytes.next().unwrap().unwrap();
 
         terminal.draw(|f| {
             let chunks = Layout::default()
@@ -173,41 +182,15 @@ fn main() -> io::Result<()> {
                     [
                         Constraint::Length(10),
                         Constraint::Length(10),
-                        //Constraint::Percentage(50),
-                        //Constraint::Percentage(50),
-                        //Constraint::Percentage(10)
+                        //Constraint::Length(1),
                     ]
                     .as_ref(),
                 )
                 .split(f.size());
 
-            /*
-            let block = Block::default()
-                .title("Block")
-                .borders(Borders::ALL);
-
-            let canvas = Canvas::default()
-                .block(block)
-                .paint(|ctx| {
-                    //ctx.print(0.0, 0.0, self.word.0.as_str(), Color::White);
-                    //ctx.print(0.0, 0.0, app.get_question().as_str(), Color::White);
-                    ctx.print(0.0, 0.0, "0", Color::White);
-                    //ctx.print(1.0, 1.0, "1", Color::White);
-                    //ctx.print(1.0, 3.0, "2\nh", Color::White);
-                })
-                .x_bounds([-5.0,5.0])
-                .y_bounds([-5.0,5.0]);
-                */
-
-            let label = Label::default().text(app.get_question());
-
-            //f.render_widget(block, chunks[0]);
-            //f.render_widget(canvas, chunks[0]);
+            let statement = format!("{}. {}", app.get_question_no(), app.get_question());
+            let label = Label::default().text(statement.as_str());
             f.render_widget(label, chunks[0]);
-
-            //let block = Block::default()
-            //    .title("Block 2")
-            //    .borders(Borders::ALL);
 
             let answer = if mode == Mode::Question {
                 "-"
@@ -217,6 +200,10 @@ fn main() -> io::Result<()> {
             //let label = Label::default().text(app.get_answer());
             let label = Label::default().text(answer);
             f.render_widget(label, chunks[1]);
+
+            //let message = format!("> rest: {}, target: {}", app.deck.len(), app.target_idx);
+            //let label = Label::new().text(message.as_str());
+            //f.render_widget(label, chunks[2]);
         })?;
 
         match bytes.next().unwrap().unwrap() {
