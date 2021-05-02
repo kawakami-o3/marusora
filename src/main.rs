@@ -62,6 +62,7 @@ impl App {
         //}
         let mut rng = thread_rng();
         self.target_idx = rng.gen_range(0..self.deck.len());
+        self.deck.remove(self.target_idx);
 
         /*
         let word = self.words[self.deck[i]].clone();
