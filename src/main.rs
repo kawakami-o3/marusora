@@ -155,7 +155,6 @@ fn main() -> io::Result<()> {
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    terminal.clear()?;
 
     let stdin = io::stdin();
     let stdin = stdin.lock();
@@ -173,6 +172,10 @@ fn main() -> io::Result<()> {
                 break;
             }
         }
+
+
+        // ターミナルサイズが変わった場合に備えて
+        terminal.clear()?;
 
         terminal.draw(|f| {
             let chunks = Layout::default()
