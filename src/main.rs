@@ -6,8 +6,8 @@ use tui::{
     backend::TermionBackend,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
-    widgets::Widget,
+    style::{Color, Style},
+    widgets::{Block, BorderType, Borders, Gauge, Widget},
     Terminal,
 };
 
@@ -78,6 +78,10 @@ impl App {
     fn get_answer(&self) -> &String {
         &self.words[self.deck[self.target_idx as usize]].1
     }
+
+    fn get_progress_percent(&self) -> u16 {
+        (self.words.len() - self.deck.len() + 1) as u16
+    }
 }
 
 struct Label<'a> {
@@ -90,8 +94,10 @@ impl<'a> Default for Label<'a> {
     fn default() -> Label<'a> {
         Label {
             text: "",
-            x: 6,
-            y: 3,
+            //x: 6,
+            //y: 3,
+            x: 0,
+            y: 0,
         }
     }
 }
@@ -173,27 +179,63 @@ fn main() -> io::Result<()> {
             }
         }
 
-
         // ターミナルサイズが変わった場合に備えて
         terminal.clear()?;
 
         terminal.draw(|f| {
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .title("marusora")
+                .border_type(BorderType::Rounded);
+            f.render_widget(block, f.size());
+
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                //.margin(1)
+                .margin(1)
                 .constraints(
                     [
-                        Constraint::Length(10),
-                        Constraint::Length(10),
+                        Constraint::Length(3),
+                        Constraint::Length(20),
+                        //Constraint::Percentage(50),
+                        //Constraint::Percentage(50),
                         //Constraint::Length(1),
                     ]
                     .as_ref(),
                 )
                 .split(f.size());
 
+            // TODO refactor
+            let label = format!(
+                "{}/{}",
+                app.words.len() - app.deck.len() + 1,
+                app.words.len()
+            );
+            let gauge = Gauge::default()
+                .block(Block::default().title("progress").borders(Borders::ALL))
+                .gauge_style(Style::default().fg(Color::White))
+                .percent(app.get_progress_percent())
+                .label(label);
+            f.render_widget(gauge, chunks[0]);
+
+            let main_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                //.direction(Direction::Horizontal)
+                .margin(1)
+                .constraints(
+                    [
+                        Constraint::Length(2),
+                        Constraint::Length(2),
+                        //Constraint::Percentage(50),
+                        //Constraint::Percentage(50),
+                        //Constraint::Length(1),
+                    ]
+                    .as_ref(),
+                )
+                .split(chunks[1]);
+
             let statement = format!("{}. {}", app.get_question_no(), app.get_question());
             let label = Label::default().text(statement.as_str());
-            f.render_widget(label, chunks[0]);
+            f.render_widget(label, main_chunks[0]);
 
             let answer = if mode == Mode::Question {
                 "-"
@@ -202,7 +244,7 @@ fn main() -> io::Result<()> {
             };
             //let label = Label::default().text(app.get_answer());
             let label = Label::default().text(answer);
-            f.render_widget(label, chunks[1]);
+            f.render_widget(label, main_chunks[1]);
 
             //let message = format!("> rest: {}, target: {}", app.deck.len(), app.target_idx);
             //let label = Label::new().text(message.as_str());
