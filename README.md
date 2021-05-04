@@ -11,7 +11,7 @@
 cargo run examples/nba.txt
 ```
 
-あとは適宜returnキーを入力します。
+あとは適宜 Enter キーを入力します。
 
 ## TODO
 
