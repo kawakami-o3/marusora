@@ -80,7 +80,7 @@ impl App {
     }
 
     fn get_progress_percent(&self) -> u16 {
-        (self.words.len() - self.deck.len() + 1) as u16
+        (100 * (self.words.len() - self.deck.len() + 1) / self.words.len()) as u16
     }
 }
 
@@ -212,7 +212,7 @@ fn main() -> io::Result<()> {
             );
             let gauge = Gauge::default()
                 .block(Block::default().title("progress").borders(Borders::ALL))
-                .gauge_style(Style::default().fg(Color::White))
+                .gauge_style(Style::default().fg(Color::Yellow))
                 .percent(app.get_progress_percent())
                 .label(label);
             f.render_widget(gauge, chunks[0]);
