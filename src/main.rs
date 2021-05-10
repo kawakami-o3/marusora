@@ -18,6 +18,7 @@ struct App {
 
     deck: Vec<usize>,
     target_idx: i32,
+    number: usize, // Number of questions
 }
 
 impl App {
@@ -26,6 +27,7 @@ impl App {
             words: Vec::new(),
             deck: Vec::new(),
             target_idx: -1,
+            number: 0,
         }
     }
 
@@ -35,7 +37,6 @@ impl App {
     }
 
     fn load_files(&mut self, files: &Vec<path::PathBuf>) -> io::Result<()> {
-
         for f in files {
             let mut file = fs::File::open(f)?;
 
@@ -55,8 +56,13 @@ impl App {
         Ok(())
     }
 
-    fn prepare(&mut self) {
-        self.deck = (0..self.words.len()).collect();
+    fn prepare(&mut self, number: i32) {
+        self.number = if number < 0 || number as usize > self.words.len() {
+            self.words.len()
+        } else {
+            number as usize
+        };
+        self.deck = (0..self.number).collect();
     }
 
     /*
@@ -90,7 +96,7 @@ impl App {
     }
 
     fn get_question_no(&self) -> usize {
-        self.words.len() - self.deck.len() + 1
+        self.number - self.deck.len() + 1
     }
 
     fn get_question(&self) -> &String {
@@ -102,7 +108,7 @@ impl App {
     }
 
     fn get_progress_percent(&self) -> u16 {
-        (100 * (self.words.len() - self.deck.len() + 1) / self.words.len()) as u16
+        (100 * (self.number - self.deck.len() + 1) / self.number) as u16
     }
 }
 
@@ -161,6 +167,10 @@ enum Mode {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "marusora")]
 struct Opt {
+    // Number of questions
+    #[structopt(short, long, default_value = "-1")]
+    number: i32,
+
     #[structopt(name = "FILE", parse(from_os_str))]
     files: Vec<path::PathBuf>,
 }
@@ -180,7 +190,7 @@ fn main() -> io::Result<()> {
     let stdin = stdin.lock();
     let mut bytes = stdin.bytes();
 
-    app.prepare();
+    app.prepare(opt.number);
 
     let mut mode = Mode::Question;
 
@@ -221,8 +231,8 @@ fn main() -> io::Result<()> {
             // TODO refactor
             let label = format!(
                 "{}/{}",
-                app.words.len() - app.deck.len() + 1,
-                app.words.len()
+                app.number - app.deck.len() + 1,
+                app.number
             );
             let gauge = Gauge::default()
                 .block(Block::default().title("progress").borders(Borders::ALL))
