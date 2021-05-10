@@ -95,6 +95,10 @@ impl App {
         Some(self.target_idx)
     }
 
+    fn get_number(&self) -> usize {
+        self.number
+    }
+
     fn get_question_no(&self) -> usize {
         self.number - self.deck.len() + 1
     }
@@ -228,12 +232,8 @@ fn main() -> io::Result<()> {
                 )
                 .split(f.size());
 
-            // TODO refactor
-            let label = format!(
-                "{}/{}",
-                app.number - app.deck.len() + 1,
-                app.number
-            );
+            let label = format!("{}/{}", app.get_question_no(), app.get_number());
+
             let gauge = Gauge::default()
                 .block(Block::default().title("progress").borders(Borders::ALL))
                 .gauge_style(Style::default().fg(Color::Yellow))
