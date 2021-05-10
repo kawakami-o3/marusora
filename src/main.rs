@@ -1,6 +1,7 @@
 use rand::prelude::*;
 use std::io::prelude::*;
-use std::{env, fs, io};
+use std::{fs, io, path};
+use structopt::StructOpt;
 use termion::raw::IntoRawMode;
 use tui::{
     backend::TermionBackend,
@@ -31,6 +32,27 @@ impl App {
     fn add(&mut self, entry: Vec<&str>) {
         self.words
             .push((String::from(entry[0]), String::from(entry[1])));
+    }
+
+    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> io::Result<()> {
+
+        for f in files {
+            let mut file = fs::File::open(f)?;
+
+            let mut buffer = String::new();
+            file.read_to_string(&mut buffer)?;
+            let v: Vec<&str> = buffer.split('\n').collect();
+
+            for ln in v {
+                let w: Vec<&str> = ln.split(',').collect();
+
+                if ln.len() >= 2 {
+                    self.add(w);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn prepare(&mut self) {
@@ -136,27 +158,19 @@ enum Mode {
     Answer,
 }
 
+#[derive(StructOpt, Debug)]
+#[structopt(name = "marusora")]
+struct Opt {
+    #[structopt(name = "FILE", parse(from_os_str))]
+    files: Vec<path::PathBuf>,
+}
+
 fn main() -> io::Result<()> {
-    let argv: Vec<String> = env::args().collect();
-    println!("{:?}", argv);
+    let opt = Opt::from_args();
 
     let mut app = App::new();
 
-    for path in &argv[1..] {
-        let mut file = fs::File::open(path).expect("file not found");
-
-        let mut buffer = String::new();
-        file.read_to_string(&mut buffer).expect("wrong");
-        let v: Vec<&str> = buffer.split('\n').collect();
-
-        for ln in v {
-            let w: Vec<&str> = ln.split(',').collect();
-
-            if ln.len() >= 2 {
-                app.add(w);
-            }
-        }
-    }
+    app.load_files(&opt.files)?;
 
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
