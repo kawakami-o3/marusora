@@ -28,3 +28,4 @@ cargo run examples/nba.txt
 * [ ] 学習履歴
 * [ ] 習熟度管理
 * [ ] 時間計測
+* [ ] Anki形式読み込み
