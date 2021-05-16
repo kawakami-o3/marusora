@@ -2,7 +2,7 @@ use rand::prelude::*;
 use std::io::prelude::*;
 use std::{fs, io, path};
 use structopt::StructOpt;
-use termion::raw::IntoRawMode;
+use termion::raw::{IntoRawMode, RawTerminal};
 use tui::{
     backend::TermionBackend,
     buffer::Buffer,
@@ -19,6 +19,8 @@ struct App {
     deck: Vec<usize>,
     target_idx: i32,
     number: usize, // Number of questions
+
+    mode: Mode,
 }
 
 impl App {
@@ -28,6 +30,7 @@ impl App {
             deck: Vec::new(),
             target_idx: -1,
             number: 0,
+            mode: Mode::Question,
         }
     }
 
@@ -162,55 +165,29 @@ impl<'a> Label<'a> {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Mode {
     Question,
     Answer,
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "marusora")]
-struct Opt {
-    // Number of questions
-    #[structopt(short, long, default_value = "-1")]
-    number: i32,
-
-    #[structopt(name = "FILE", parse(from_os_str))]
-    files: Vec<path::PathBuf>,
+struct View {
+    terminal: Terminal<TermionBackend<RawTerminal<io::Stdout>>>,
 }
 
-fn main() -> io::Result<()> {
-    let opt = Opt::from_args();
-
-    let mut app = App::new();
-
-    app.load_files(&opt.files)?;
-
-    let stdout = io::stdout().into_raw_mode()?;
-    let backend = TermionBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let stdin = io::stdin();
-    let stdin = stdin.lock();
-    let mut bytes = stdin.bytes();
-
-    app.prepare(opt.number);
-
-    let mut mode = Mode::Question;
-
-    loop {
-        if mode == Mode::Question {
-            let result = app.update_target();
-
-            if result == None {
-                break;
-            }
+impl View {
+    fn new(stdout: RawTerminal<io::Stdout>) -> View {
+        View {
+            // TODO error handling
+            terminal: Terminal::new(TermionBackend::new(stdout)).unwrap(),
         }
+    }
 
+    fn display(&mut self, app: &App) -> io::Result<()> {
         // ターミナルサイズが変わった場合に備えて
-        terminal.clear()?;
+        self.terminal.clear()?;
 
-        terminal.draw(|f| {
+        self.terminal.draw(|f| {
             let block = Block::default()
                 .borders(Borders::ALL)
                 .title("marusora")
@@ -261,7 +238,7 @@ fn main() -> io::Result<()> {
             let label = Label::default().text(statement.as_str());
             f.render_widget(label, main_chunks[0]);
 
-            let answer = if mode == Mode::Question {
+            let answer = if app.mode == Mode::Question {
                 "-"
             } else {
                 app.get_answer()
@@ -275,13 +252,55 @@ fn main() -> io::Result<()> {
             //f.render_widget(label, chunks[2]);
         })?;
 
+        Ok(())
+    }
+}
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "marusora")]
+struct Opt {
+    // Number of questions
+    #[structopt(short, long, default_value = "-1")]
+    number: i32,
+
+    #[structopt(name = "FILE", parse(from_os_str))]
+    files: Vec<path::PathBuf>,
+}
+
+fn main() -> io::Result<()> {
+    let opt = Opt::from_args();
+
+    let mut app = App::new();
+
+    app.load_files(&opt.files)?;
+
+    let stdout = io::stdout().into_raw_mode()?;
+    let mut view = View::new(stdout);
+
+    let stdin = io::stdin();
+    let stdin = stdin.lock();
+    let mut bytes = stdin.bytes();
+
+    app.prepare(opt.number);
+
+    loop {
+        if app.mode == Mode::Question {
+            let result = app.update_target();
+
+            if result == None {
+                break;
+            }
+        }
+
+        view.display(&app)?;
+
         match bytes.next().unwrap().unwrap() {
             b'q' => {
                 break;
             }
             _ => {
                 //mode.next();
-                mode = if mode == Mode::Question {
+                app.mode = if app.mode == Mode::Question {
                     Mode::Answer
                 } else {
                     Mode::Question
