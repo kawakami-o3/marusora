@@ -17,7 +17,7 @@ struct App {
     words: Vec<(String, String)>,
 
     deck: Vec<usize>,
-    target_idx: i32,
+    target_idx: usize,
     number: usize, // Number of questions
 
     mode: Mode,
@@ -28,7 +28,7 @@ impl App {
         App {
             words: Vec::new(),
             deck: Vec::new(),
-            target_idx: -1,
+            target_idx: 0,
             number: 0,
             mode: Mode::Question,
         }
@@ -65,7 +65,20 @@ impl App {
         } else {
             number as usize
         };
-        self.deck = (0..self.number).collect();
+
+        self.deck = Vec::new();
+        let mut candidates: Vec<usize> = (0..self.words.len()).collect();
+
+        let mut rng = thread_rng();
+
+
+        while self.deck.len() < self.number {
+            let i = rng.gen_range(0..candidates.len());
+            self.deck.push(candidates[i]);
+            candidates.remove(i);
+        }
+
+        self.target_idx = 0;
     }
 
     /*
@@ -83,19 +96,20 @@ impl App {
     }
     */
 
-    fn update_target(&mut self) -> Option<i32> {
-        if self.target_idx >= 0 {
-            self.deck.remove(self.target_idx as usize);
+    fn update(&mut self) {
+        self.mode = if self.mode == Mode::Question {
+            Mode::Answer
+        } else {
+            Mode::Question
+        };
+
+        if self.mode == Mode::Question {
+            self.target_idx += 1;
         }
 
-        if self.deck.is_empty() {
-            return None;
+        if self.deck.len() <= self.target_idx {
+            self.mode = Mode::Done;
         }
-
-        let mut rng = thread_rng();
-        self.target_idx = rng.gen_range(0..self.deck.len()) as i32;
-
-        Some(self.target_idx)
     }
 
     fn get_number(&self) -> usize {
@@ -103,19 +117,25 @@ impl App {
     }
 
     fn get_question_no(&self) -> usize {
-        self.number - self.deck.len() + 1
+        //self.number - self.deck.len() + 1
+        self.target_idx + 1
     }
 
     fn get_question(&self) -> &String {
-        &self.words[self.deck[self.target_idx as usize]].0
+        &self.words[self.deck[self.target_idx]].0
     }
 
     fn get_answer(&self) -> &String {
-        &self.words[self.deck[self.target_idx as usize]].1
+        &self.words[self.deck[self.target_idx]].1
     }
 
     fn get_progress_percent(&self) -> u16 {
-        (100 * (self.number - self.deck.len() + 1) / self.number) as u16
+        (100 * (self.target_idx + 1) / self.number) as u16
+    }
+
+    fn study_again(&mut self) {
+        self.deck.push(self.deck[self.target_idx]);
+        self.number += 1;
     }
 }
 
@@ -169,6 +189,7 @@ impl<'a> Label<'a> {
 enum Mode {
     Question,
     Answer,
+    Done,
 }
 
 struct View {
@@ -226,6 +247,7 @@ impl View {
                     [
                         Constraint::Length(2),
                         Constraint::Length(2),
+                        Constraint::Length(2),
                         //Constraint::Percentage(50),
                         //Constraint::Percentage(50),
                         //Constraint::Length(1),
@@ -247,9 +269,9 @@ impl View {
             let label = Label::default().text(answer);
             f.render_widget(label, main_chunks[1]);
 
-            //let message = format!("> rest: {}, target: {}", app.deck.len(), app.target_idx);
-            //let label = Label::new().text(message.as_str());
-            //f.render_widget(label, chunks[2]);
+            //let message = format!("> rest: {}, target: {}, deck: {:?}", app.deck.len(), app.target_idx, app.deck);
+            //let label = Label::default().text(message.as_str());
+            //f.render_widget(label, main_chunks[2]);
         })?;
 
         Ok(())
@@ -284,28 +306,25 @@ fn main() -> io::Result<()> {
     app.prepare(opt.number);
 
     loop {
-        if app.mode == Mode::Question {
-            let result = app.update_target();
-
-            if result == None {
-                break;
-            }
-        }
-
         view.display(&app)?;
 
         match bytes.next().unwrap().unwrap() {
             b'q' => {
                 break;
             }
-            _ => {
-                //mode.next();
-                app.mode = if app.mode == Mode::Question {
-                    Mode::Answer
-                } else {
-                    Mode::Question
-                };
+            b'r' => {
+                if app.mode == Mode::Answer {
+                    app.study_again();
+                }
             }
+            _ => {
+            }
+        }
+
+        app.update();
+
+        if app.mode == Mode::Done {
+            break;
         }
     }
 
