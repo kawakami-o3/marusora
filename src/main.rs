@@ -39,12 +39,15 @@ impl App {
             .push((String::from(entry[0]), String::from(entry[1])));
     }
 
-    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> io::Result<()> {
+    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> Result<(), io::Error> {
         for f in files {
             let mut file = fs::File::open(f)?;
 
             let mut buffer = String::new();
-            file.read_to_string(&mut buffer)?;
+            match file.read_to_string(&mut buffer) {
+                Ok(_) => {},
+                Err(e) => return Err(e),
+            };
             let v: Vec<&str> = buffer.split('\n').collect();
 
             for ln in v {
@@ -206,7 +209,10 @@ impl View {
 
     fn display(&mut self, app: &App) -> io::Result<()> {
         // ターミナルサイズが変わった場合に備えて
-        self.terminal.clear()?;
+        match self.terminal.clear() {
+            Ok(()) => {},
+            Err(e) => return Err(e),
+        };
 
         self.terminal.draw(|f| {
             let block = Block::default()
@@ -272,9 +278,8 @@ impl View {
             //let message = format!("> rest: {}, target: {}, deck: {:?}", app.deck.len(), app.target_idx, app.deck);
             //let label = Label::default().text(message.as_str());
             //f.render_widget(label, main_chunks[2]);
-        })?;
+        })
 
-        Ok(())
     }
 }
 
@@ -289,15 +294,26 @@ struct Opt {
     files: Vec<path::PathBuf>,
 }
 
-fn main() -> io::Result<()> {
+fn main() {
     let opt = Opt::from_args();
 
     let mut app = App::new();
 
-    app.load_files(&opt.files)?;
+    match app.load_files(&opt.files) {
+        Ok(()) => {},
+        Err(error) => {
+            panic!("{:?}", error);
+        }
+    }
 
-    let stdout = io::stdout().into_raw_mode()?;
-    let mut view = View::new(stdout);
+    let stdout = io::stdout().into_raw_mode();
+
+    let mut view = match stdout {
+        Ok(s) => View::new(s),
+        Err(error) => {
+            panic!("{:?}", error);
+        }
+    };
 
     let stdin = io::stdin();
     let stdin = stdin.lock();
@@ -306,7 +322,13 @@ fn main() -> io::Result<()> {
     app.prepare(opt.number);
 
     loop {
-        view.display(&app)?;
+        match view.display(&app) {
+            Ok(()) => {},
+            Err(error) => {
+                //view.reset();
+                panic!("{:?}", error);
+            }
+        }
 
         match bytes.next().unwrap().unwrap() {
             b'q' => {
@@ -328,5 +350,4 @@ fn main() -> io::Result<()> {
         }
     }
 
-    Ok(())
 }
