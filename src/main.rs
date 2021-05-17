@@ -39,15 +39,12 @@ impl App {
             .push((String::from(entry[0]), String::from(entry[1])));
     }
 
-    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> Result<(), io::Error> {
+    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> io::Result<()> {
         for f in files {
             let mut file = fs::File::open(f)?;
 
             let mut buffer = String::new();
-            match file.read_to_string(&mut buffer) {
-                Ok(_) => {},
-                Err(e) => return Err(e),
-            };
+            file.read_to_string(&mut buffer)?;
             let v: Vec<&str> = buffer.split('\n').collect();
 
             for ln in v {
@@ -209,10 +206,7 @@ impl View {
 
     fn display(&mut self, app: &App) -> io::Result<()> {
         // ターミナルサイズが変わった場合に備えて
-        match self.terminal.clear() {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        };
+        self.terminal.clear()?;
 
         self.terminal.draw(|f| {
             let block = Block::default()
@@ -296,11 +290,8 @@ struct Opt {
 
 
 // https://github.com/fdehau/tui-rs/issues/177
-fn setup_panic() -> Result<(), io::Error> {
-    let raw_handle = match io::stdout().into_raw_mode() {
-        Ok(t) => t,
-        Err(e) => return Err(e),
-    };
+fn setup_panic() -> io::Result<()> {
+    let raw_handle = io::stdout().into_raw_mode()?;
     //let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
         raw_handle.suspend_raw_mode()
@@ -312,31 +303,17 @@ fn setup_panic() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn main() {
-    match setup_panic() {
-        Ok(_) => {},
-        Err(e) => panic!("{}", e),
-    };
+fn main() -> io::Result<()> {
+    setup_panic()?;
 
     let opt = Opt::from_args();
 
     let mut app = App::new();
 
-    match app.load_files(&opt.files) {
-        Ok(()) => {},
-        Err(error) => {
-            panic!("{:?}", error);
-        }
-    }
+    app.load_files(&opt.files)?;
 
-    let stdout = io::stdout().into_raw_mode();
-
-    let mut view = match stdout {
-        Ok(s) => View::new(s),
-        Err(error) => {
-            panic!("{:?}", error);
-        }
-    };
+    let stdout = io::stdout().into_raw_mode()?;
+    let mut view = View::new(stdout);
 
     let stdin = io::stdin();
     let stdin = stdin.lock();
@@ -345,13 +322,7 @@ fn main() {
     app.prepare(opt.number);
 
     loop {
-        match view.display(&app) {
-            Ok(()) => {},
-            Err(error) => {
-                //view.reset();
-                panic!("{:?}", error);
-            }
-        }
+        view.display(&app)?;
 
         match bytes.next().unwrap().unwrap() {
             b'q' => {
@@ -373,4 +344,5 @@ fn main() {
         }
     }
 
+    Ok(())
 }
