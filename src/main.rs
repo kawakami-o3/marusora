@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use std::io::prelude::*;
-use std::{fs, io, path};
+use std::{fs, io, path, panic};
 use structopt::StructOpt;
 use termion::raw::{IntoRawMode, RawTerminal};
 use tui::{
@@ -294,7 +294,30 @@ struct Opt {
     files: Vec<path::PathBuf>,
 }
 
+
+// https://github.com/fdehau/tui-rs/issues/177
+fn setup_panic() -> Result<(), io::Error> {
+    let raw_handle = match io::stdout().into_raw_mode() {
+        Ok(t) => t,
+        Err(e) => return Err(e),
+    };
+    //let default_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        raw_handle.suspend_raw_mode()
+            .unwrap_or_else(|e| log::error!("Could not suspend raw mode: {}", e));
+        //default_hook(info);
+        better_panic::Settings::new().create_panic_handler()(info);
+    }));
+
+    Ok(())
+}
+
 fn main() {
+    match setup_panic() {
+        Ok(_) => {},
+        Err(e) => panic!("{}", e),
+    };
+
     let opt = Opt::from_args();
 
     let mut app = App::new();
