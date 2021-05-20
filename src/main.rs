@@ -1,6 +1,7 @@
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::io::prelude::*;
-use std::{fs, io, path, panic};
+use std::{fs, io, panic, path};
 use structopt::StructOpt;
 use termion::raw::{IntoRawMode, RawTerminal};
 use tui::{
@@ -12,9 +13,90 @@ use tui::{
     Terminal,
 };
 
-#[derive(Debug)]
+//#[derive(Debug, Serialize, Deserialize)]
+//struct Entry {
+//    key: String,
+//    value: String,
+//}
+//
+//#[derive(Debug, Serialize, Deserialize)]
+//struct EntryList {
+//    list: Vec<Entry>,
+//}
+//
+//impl EntryList {
+//    fn new() -> Self {
+//        EntryList { list: Vec::new() }
+//    }
+//
+//    fn len(&self) -> usize {
+//        self.list.len()
+//    }
+//
+//    fn is_empty(&self) -> bool {
+//        self.list.is_empty()
+//    }
+//
+//    fn push(&mut self, e: Entry) {
+//        self.list.push(e)
+//    }
+//
+//    fn get(&self, i: usize) -> &Entry {
+//        &self.list[i]
+//    }
+//}
+
+/*
+struct EntryListVisitor {
+    marker: marker::PhantomData<fn() -> EntryList>,
+}
+
+impl EntryListVisitor {
+    fn new() -> Self {
+        EntryListVisitor {
+            marker: marker::PhantomData,
+        }
+    }
+}
+
+impl<'de> de::Visitor<'de> for EntryListVisitor {
+    type Value = EntryList;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("hogehoge")
+    }
+
+    //fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where
+        //M: de::MapAccess<'de>,
+        M: de::SeqAccess<'de>,
+    {
+        let mut list = EntryList::new();
+
+        //while let Some((key, value)) = access.next_entry()? {
+        while let Some(value) = access.next_element::<Entry>()? {
+            println!("{:?}", value);
+        }
+
+        Ok(list)
+    }
+}
+
+impl<'de> de::Deserialize<'de> for EntryList {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(EntryListVisitor::new())
+    }
+}
+*/
+
+#[derive(Debug, Serialize, Deserialize)]
 struct App {
-    words: Vec<(String, String)>,
+    //entries: EntryList,
+    entries: Vec<(String, String)>,
 
     deck: Vec<usize>,
     target_idx: usize,
@@ -24,9 +106,10 @@ struct App {
 }
 
 impl App {
-    fn new() -> App {
+    fn new() -> Self {
         App {
-            words: Vec::new(),
+            //entries: EntryList::new(),
+            entries: Vec::new(),
             deck: Vec::new(),
             target_idx: 0,
             number: 0,
@@ -34,12 +117,46 @@ impl App {
         }
     }
 
+    fn restore(&mut self, file: &mut fs::File) -> io::Result<()> {
+        let mut serialized = String::new();
+        file.read_to_string(&mut serialized)?;
+
+        if let Ok(app) = serde_json::from_str::<App>(&serialized) {
+            *self = app;
+        }
+
+        Ok(())
+    }
+
+    fn save(&self, file_path: &str) -> io::Result<()> {
+        let serialized = serde_json::to_string(self).unwrap();
+
+        let mut file = match fs::File::create(file_path) {
+            Ok(f) => f,
+            Err(e) => {
+                panic!("{}", e)
+            }
+        };
+
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
+    }
+
+    fn has_data(&self) -> bool {
+        !self.entries.is_empty()
+    }
+
     fn add(&mut self, entry: Vec<&str>) {
-        self.words
+        //self.entries.push(Entry {
+        //    key: String::from(entry[0]),
+        //    value: String::from(entry[1]),
+        //});
+
+        self.entries
             .push((String::from(entry[0]), String::from(entry[1])));
     }
 
-    fn load_files(&mut self, files: &Vec<path::PathBuf>) -> io::Result<()> {
+    fn load_files(&mut self, files: &[path::PathBuf]) -> io::Result<()> {
         for f in files {
             let mut file = fs::File::open(f)?;
 
@@ -60,17 +177,16 @@ impl App {
     }
 
     fn prepare(&mut self, number: i32) {
-        self.number = if number < 0 || number as usize > self.words.len() {
-            self.words.len()
+        self.number = if number < 0 || number as usize > self.entries.len() {
+            self.entries.len()
         } else {
             number as usize
         };
 
         self.deck = Vec::new();
-        let mut candidates: Vec<usize> = (0..self.words.len()).collect();
+        let mut candidates: Vec<usize> = (0..self.entries.len()).collect();
 
         let mut rng = thread_rng();
-
 
         while self.deck.len() < self.number {
             let i = rng.gen_range(0..candidates.len());
@@ -80,21 +196,6 @@ impl App {
 
         self.target_idx = 0;
     }
-
-    /*
-    fn next(&mut self) -> Option<(String, String)> {
-        if self.deck.is_empty() {
-            return None;
-        }
-
-        let mut rng = thread_rng();
-        let i = rng.gen_range(0..self.deck.len());
-
-        let word = self.words[self.deck[i]].clone();
-        self.deck.remove(i);
-        Some((word.0.clone(), word.1.clone()))
-    }
-    */
 
     fn update(&mut self) {
         self.mode = if self.mode == Mode::Question {
@@ -122,11 +223,13 @@ impl App {
     }
 
     fn get_question(&self) -> &String {
-        &self.words[self.deck[self.target_idx]].0
+        //&self.entries.get(self.deck[self.target_idx]).key
+        &self.entries[self.deck[self.target_idx]].0
     }
 
     fn get_answer(&self) -> &String {
-        &self.words[self.deck[self.target_idx]].1
+        //&self.entries.get(self.deck[self.target_idx]).value
+        &self.entries[self.deck[self.target_idx]].1
     }
 
     fn get_progress_percent(&self) -> u16 {
@@ -136,6 +239,18 @@ impl App {
     fn study_again(&mut self) {
         self.deck.push(self.deck[self.target_idx]);
         self.number += 1;
+    }
+
+    fn is_question_mode(&self) -> bool {
+        self.mode == Mode::Question
+    }
+
+    fn is_answer_mode(&self) -> bool {
+        self.mode == Mode::Answer
+    }
+
+    fn is_doen_mode(&self) -> bool {
+        self.mode == Mode::Done
     }
 }
 
@@ -185,7 +300,7 @@ impl<'a> Label<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 enum Mode {
     Question,
     Answer,
@@ -197,7 +312,7 @@ struct View {
 }
 
 impl View {
-    fn new(stdout: RawTerminal<io::Stdout>) -> View {
+    fn new(stdout: RawTerminal<io::Stdout>) -> Self {
         View {
             // TODO error handling
             terminal: Terminal::new(TermionBackend::new(stdout)).unwrap(),
@@ -260,7 +375,7 @@ impl View {
             let label = Label::default().text(statement.as_str());
             f.render_widget(label, main_chunks[0]);
 
-            let answer = if app.mode == Mode::Question {
+            let answer = if app.is_question_mode() {
                 "-"
             } else {
                 app.get_answer()
@@ -273,7 +388,6 @@ impl View {
             //let label = Label::default().text(message.as_str());
             //f.render_widget(label, main_chunks[2]);
         })
-
     }
 }
 
@@ -284,17 +398,25 @@ struct Opt {
     #[structopt(short, long, default_value = "-1")]
     number: i32,
 
+    //#[structopt(name = "FILE", parse(from_os_str), default_value = "~/.marusora")]
+    #[structopt(short, long, default_value = "marusora.save")]
+    //save: path::PathBuf,
+    save: String,
+
     #[structopt(name = "FILE", parse(from_os_str))]
     files: Vec<path::PathBuf>,
 }
 
-
 // https://github.com/fdehau/tui-rs/issues/177
 fn setup_panic() -> io::Result<()> {
     let raw_handle = io::stdout().into_raw_mode()?;
+
+    raw_handle.suspend_raw_mode()?;
+
     //let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
-        raw_handle.suspend_raw_mode()
+        raw_handle
+            .suspend_raw_mode()
             .unwrap_or_else(|e| log::error!("Could not suspend raw mode: {}", e));
         //default_hook(info);
         better_panic::Settings::new().create_panic_handler()(info);
@@ -310,7 +432,22 @@ fn main() -> io::Result<()> {
 
     let mut app = App::new();
 
-    app.load_files(&opt.files)?;
+    if let Ok(mut f) = fs::File::open(&opt.save) {
+        print!("Load saved file, '{}'? [Yn] ", opt.save);
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        if input == "\n" || input == "Y\n" || input == "y\n" {
+            app.restore(&mut f)?;
+        }
+    }
+
+    // TODO refactor
+    if !app.has_data() {
+        app.load_files(&opt.files)?;
+        app.prepare(opt.number);
+    }
 
     let stdout = io::stdout().into_raw_mode()?;
     let mut view = View::new(stdout);
@@ -319,27 +456,25 @@ fn main() -> io::Result<()> {
     let stdin = stdin.lock();
     let mut bytes = stdin.bytes();
 
-    app.prepare(opt.number);
-
     loop {
         view.display(&app)?;
 
         match bytes.next().unwrap().unwrap() {
             b'q' => {
+                app.save(&opt.save)?;
                 break;
             }
             b'r' => {
-                if app.mode == Mode::Answer {
+                if app.is_answer_mode() {
                     app.study_again();
                 }
             }
-            _ => {
-            }
+            _ => {}
         }
 
         app.update();
 
-        if app.mode == Mode::Done {
+        if app.is_doen_mode() {
             break;
         }
     }
