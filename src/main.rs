@@ -13,89 +13,8 @@ use tui::{
     Terminal,
 };
 
-//#[derive(Debug, Serialize, Deserialize)]
-//struct Entry {
-//    key: String,
-//    value: String,
-//}
-//
-//#[derive(Debug, Serialize, Deserialize)]
-//struct EntryList {
-//    list: Vec<Entry>,
-//}
-//
-//impl EntryList {
-//    fn new() -> Self {
-//        EntryList { list: Vec::new() }
-//    }
-//
-//    fn len(&self) -> usize {
-//        self.list.len()
-//    }
-//
-//    fn is_empty(&self) -> bool {
-//        self.list.is_empty()
-//    }
-//
-//    fn push(&mut self, e: Entry) {
-//        self.list.push(e)
-//    }
-//
-//    fn get(&self, i: usize) -> &Entry {
-//        &self.list[i]
-//    }
-//}
-
-/*
-struct EntryListVisitor {
-    marker: marker::PhantomData<fn() -> EntryList>,
-}
-
-impl EntryListVisitor {
-    fn new() -> Self {
-        EntryListVisitor {
-            marker: marker::PhantomData,
-        }
-    }
-}
-
-impl<'de> de::Visitor<'de> for EntryListVisitor {
-    type Value = EntryList;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hogehoge")
-    }
-
-    //fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        //M: de::MapAccess<'de>,
-        M: de::SeqAccess<'de>,
-    {
-        let mut list = EntryList::new();
-
-        //while let Some((key, value)) = access.next_entry()? {
-        while let Some(value) = access.next_element::<Entry>()? {
-            println!("{:?}", value);
-        }
-
-        Ok(list)
-    }
-}
-
-impl<'de> de::Deserialize<'de> for EntryList {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        deserializer.deserialize_map(EntryListVisitor::new())
-    }
-}
-*/
-
 #[derive(Debug, Serialize, Deserialize)]
 struct App {
-    //entries: EntryList,
     entries: Vec<(String, String)>,
 
     deck: Vec<usize>,
@@ -108,7 +27,6 @@ struct App {
 impl App {
     fn new() -> Self {
         App {
-            //entries: EntryList::new(),
             entries: Vec::new(),
             deck: Vec::new(),
             target_idx: 0,
@@ -147,11 +65,6 @@ impl App {
     }
 
     fn add(&mut self, entry: Vec<&str>) {
-        //self.entries.push(Entry {
-        //    key: String::from(entry[0]),
-        //    value: String::from(entry[1]),
-        //});
-
         self.entries
             .push((String::from(entry[0]), String::from(entry[1])));
     }
@@ -218,17 +131,14 @@ impl App {
     }
 
     fn get_question_no(&self) -> usize {
-        //self.number - self.deck.len() + 1
         self.target_idx + 1
     }
 
     fn get_question(&self) -> &String {
-        //&self.entries.get(self.deck[self.target_idx]).key
         &self.entries[self.deck[self.target_idx]].0
     }
 
     fn get_answer(&self) -> &String {
-        //&self.entries.get(self.deck[self.target_idx]).value
         &self.entries[self.deck[self.target_idx]].1
     }
 
